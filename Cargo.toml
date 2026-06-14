@@ -1,0 +1,14 @@
+[package]
+name = "GPUIApplication"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gpui = { git = "https://github.com/gpui-ce/gpui-ce" }
+gpui_platform = { git = "https://github.com/gpui-ce/gpui-ce" }
+# gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+
+# smallvec is included here for convenience, it is used by gpui when creating
+# components that can have children. uncomment this line or
+# use `cargo add smallvec` to add it to your project
+smallvec = "1.13.2"
