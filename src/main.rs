@@ -2,14 +2,19 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 mod modal;
+mod settings;
 
 use gpui::{
-    App, Bounds, ClickEvent, Context, CursorStyle, Entity, IntoElement, Pixels, Render,
-    SharedString, Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
+    Action, Anchor, App, Bounds, ClickEvent, Context, CursorStyle, Entity, IntoElement, Pixels,
+    Render, SharedString, Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
 };
-use gpui_component::button::{Button, ButtonVariant, ButtonVariants};
+use gpui_component::button::{Button, ButtonVariant, ButtonVariants, DropdownButton};
 use gpui_component::dialog::{Dialog, DialogHeader, DialogTitle};
+use gpui_component::group_box::GroupBox;
 use gpui_component::input::{Input, InputState};
+use gpui_component::menu::{DropdownMenu, PopupMenu};
+use gpui_component::plot::Grid;
+use gpui_component::resizable::{ResizablePanel, h_resizable, resizable_panel};
 use gpui_component::{
     ActiveTheme, Icon, IconName, Root, Sizable, StyledExt, Theme, ThemeConfig, ThemeMode, ThemeSet,
     WindowExt, h_flex, v_flex,
@@ -18,15 +23,18 @@ use gpui_component::{ThemeRegistry, TitleBar};
 use hyperflash::deck::Deck;
 use hyperflash::note::NoteModel;
 
+use crate::settings::Settings;
+
+#[derive(Clone, PartialEq, Action)]
+struct SelectNoteType;
+
 struct AppState {
-    //deck: Deck,
+    settings: Settings,
 }
 
 impl AppState {
-    fn new(cx: &mut Context<Self>) -> Self {
-        Self {
-            //deck: Deck { models: vec![NoteModel {}]},
-        }
+    fn new(settings: Settings) -> Self {
+        Self { settings }
     }
 }
 
@@ -34,6 +42,7 @@ impl AppState {
     fn show_add_card(&mut self, e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
         let front = cx.new(|cx| InputState::new(window, cx));
         let back = cx.new(|cx| InputState::new(window, cx));
+        let tags = cx.new(|cx| InputState::new(window, cx));
 
         window.open_dialog(cx, move |dialog, _, _| {
             dialog
@@ -42,11 +51,42 @@ impl AppState {
                 .child(
                     v_flex()
                         .gap_3()
+                        .child(
+                            h_flex()
+                                .gap_1()
+                                .justify_around()
+                                .child(
+                                    DropdownButton::new("Note Type")
+                                        .button(
+                                            Button::new("Note Type")
+                                                .label("Note Type")
+                                                .on_click(|e, window, cx| {}),
+                                        )
+                                        .dropdown_menu(|menu, _, _| {
+                                            menu.menu("Option 1", Box::new(SelectNoteType))
+                                        }),
+                                )
+                                .child(
+                                    DropdownButton::new("Deck")
+                                        .button(Button::new("Deck").label("Deck"))
+                                        .dropdown_menu(|menu, _, _| {
+                                            menu.menu("Option 1", Box::new(SelectNoteType))
+                                        }),
+                                ),
+                        )
                         .child(v_flex().gap_1().child("Front").child(Input::new(&front)))
-                        .child(v_flex().gap_1().child("Back").child(Input::new(&back))),
+                        .child(v_flex().gap_1().child("Back").child(Input::new(&back)))
+                        .child(
+                            v_flex()
+                                .gap_1()
+                                .child("Tags (comma-separated)")
+                                .child(Input::new(&tags)),
+                        ),
                 )
         });
     }
+
+    fn settings(&mut self, e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {}
 
     fn titlebar(cx: &mut Context<Self>) -> TitleBar {
         TitleBar::new().child(
@@ -94,47 +134,65 @@ impl Render for AppState {
             .flex_col()
             .child(Self::titlebar(cx))
             .child(
-                h_flex().child(
-                    v_flex()
-                        .child(
-                            Button::new("home")
-                                .with_variant(ButtonVariant::Primary)
-                                .child(IconName::Building2)
-                                .child("Home")
-                                .size_full(),
-                        )
-                        .child(
-                            Button::new("browse")
-                                .with_variant(ButtonVariant::Primary)
-                                .child(IconName::Search)
-                                .child("Browse")
-                                .size_full(),
-                        )
-                        .child(
-                            Button::new("statistics")
-                                .with_variant(ButtonVariant::Primary)
-                                .child(IconName::ChartPie)
-                                .child("Statistics")
-                                .size_full(),
-                        ),
-                ),
-            )
-            .child(
-                div()
-                    .w_full()
-                    .flex()
-                    .flex_row()
-                    .justify_center()
-                    .items_center()
-                    .gap_4()
-                    .pt_4()
+                h_resizable("panels")
                     .child(
-                        Button::new("Add")
-                            .with_variant(ButtonVariant::Primary)
-                            .child("Add")
-                            .large()
-                            .cursor(CursorStyle::PointingHand)
-                            .on_click(cx.listener(Self::show_add_card)),
+                        resizable_panel()
+                            .min_size(Pixels::from(100.0))
+                            .size(Pixels::from(200.0))
+                            .child(
+                                v_flex()
+                                    .size_full()
+                                    .items_stretch()
+                                    .px_4()
+                                    .py_4()
+                                    .gap_3()
+                                    .child(
+                                        Button::new("home")
+                                            .child(IconName::Building2)
+                                            .label("Home")
+                                            .cursor(CursorStyle::PointingHand),
+                                    )
+                                    .child(
+                                        Button::new("browse")
+                                            .child(IconName::Search)
+                                            .label("Browse")
+                                            .cursor(CursorStyle::PointingHand),
+                                    )
+                                    .child(
+                                        Button::new("statistics")
+                                            .child(IconName::ChartPie)
+                                            .label("Statistics")
+                                            .cursor(CursorStyle::PointingHand),
+                                    )
+                                    .child(
+                                        Button::new("settings")
+                                            .child(IconName::Settings)
+                                            .label("Settings")
+                                            .cursor(CursorStyle::PointingHand), //.on_click(settings_view),
+                                    ),
+                            ),
+                    )
+                    .child(
+                        resizable_panel()
+                            .size(Pixels::from(400.0))
+                            .min_size(Pixels::from(200.0))
+                            .child(div().rounded_b_2xl().bg(cx.theme().sidebar_accent)),
+                    )
+                    .child(
+                        resizable_panel().child(
+                            v_flex()
+                                .size_full()
+                                .items_stretch()
+                                .px_4()
+                                .py_4()
+                                .gap_3()
+                                .child(
+                                    Button::new("Add")
+                                        .label("Add Card")
+                                        .cursor(CursorStyle::PointingHand)
+                                        .on_click(cx.listener(Self::show_add_card)),
+                                ),
+                        ),
                     ),
             )
             .children(dialog_layer)
@@ -142,6 +200,10 @@ impl Render for AppState {
 }
 
 fn main() {
+    let settings =
+        toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
+            .unwrap();
+
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)
         .run(|cx: &mut App| {
@@ -161,12 +223,12 @@ fn main() {
                 |window, cx| {
                     apply_theme(
                         cx,
-                        &"Mellifluous Light".to_owned(),
-                        &"Mellifluous Dark".to_owned(),
-                        &ThemeMode::Dark,
+                        &settings.theme.light_theme,
+                        &settings.theme.dark_theme,
+                        &settings.theme.mode,
                     );
 
-                    let view = cx.new(|cx| AppState::new(cx));
+                    let view = cx.new(|_| AppState::new(settings));
                     return cx.new(|cx| Root::new(view, window, cx));
                 },
             )
