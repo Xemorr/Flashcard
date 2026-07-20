@@ -1,4 +1,5 @@
 [theme]
-light_theme = "Molokai Light"
+light_theme = "Ayu Light"
 dark_theme = "Ayu Dark"
-mode = "Light"
+mode = "Dark"
+experimental_feature = "hihih"

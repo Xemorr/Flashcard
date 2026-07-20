@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 mod modal;
-mod settings;
+mod settings2;
 
 use gpui::{
     Action, App, Bounds, ClickEvent, Context, CursorStyle, IntoElement, Pixels,
@@ -16,7 +16,7 @@ use gpui_component::{
 };
 use gpui_component::{ThemeRegistry, TitleBar};
 
-use crate::settings::Settings;
+use crate::settings2::Settings;
 
 #[derive(Clone, PartialEq, Action, serde::Deserialize)]
 pub struct SelectNoteType;
@@ -80,7 +80,7 @@ impl AppState {
     }
 
     fn settings(&mut self, _e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
-        settings::settings_view(self.settings.clone(), cx.entity().clone(), window, cx);
+        settings2::settings_view(self.settings.clone(), cx.entity().clone(), window, cx);
     }
 
     fn titlebar(cx: &mut Context<Self>) -> TitleBar {
@@ -219,8 +219,8 @@ fn main() {
                         &settings.theme.light_theme,
                         &settings.theme.dark_theme,
                         match settings.theme.mode {
-                            settings::ThemeMode::Light => ThemeMode::Light,
-                            settings::ThemeMode::Dark => ThemeMode::Dark,
+                            settings2::ThemeMode::Light => ThemeMode::Light,
+                            settings2::ThemeMode::Dark => ThemeMode::Dark,
                         },
                     );
 
