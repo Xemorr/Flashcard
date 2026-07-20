@@ -1,32 +1,25 @@
 use std::path::PathBuf;
-use std::rc::Rc;
 
 mod modal;
 mod settings;
 
 use gpui::{
-    Action, Anchor, App, Bounds, ClickEvent, Context, CursorStyle, Entity, IntoElement, Pixels,
+    Action, App, Bounds, ClickEvent, Context, CursorStyle, IntoElement, Pixels,
     Render, SharedString, Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
 };
-use gpui_component::button::{Button, ButtonVariant, ButtonVariants, DropdownButton};
-use gpui_component::dialog::{Dialog, DialogHeader, DialogTitle};
-use gpui_component::group_box::GroupBox;
+use gpui_component::button::{Button, DropdownButton};
 use gpui_component::input::{Input, InputState};
-use gpui_component::menu::{DropdownMenu, PopupMenu};
-use gpui_component::plot::Grid;
-use gpui_component::resizable::{ResizablePanel, h_resizable, resizable_panel};
+use gpui_component::resizable::{h_resizable, resizable_panel};
 use gpui_component::{
-    ActiveTheme, Icon, IconName, Root, Sizable, StyledExt, Theme, ThemeConfig, ThemeMode, ThemeSet,
+    ActiveTheme, IconName, Root, Theme, ThemeMode,
     WindowExt, h_flex, v_flex,
 };
 use gpui_component::{ThemeRegistry, TitleBar};
-use hyperflash::deck::Deck;
-use hyperflash::note::NoteModel;
 
 use crate::settings::Settings;
 
-#[derive(Clone, PartialEq, Action)]
-struct SelectNoteType;
+#[derive(Clone, PartialEq, Action, serde::Deserialize)]
+pub struct SelectNoteType;
 
 struct AppState {
     settings: Settings,
@@ -39,7 +32,7 @@ impl AppState {
 }
 
 impl AppState {
-    fn show_add_card(&mut self, e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn show_add_card(&mut self, _e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
         let front = cx.new(|cx| InputState::new(window, cx));
         let back = cx.new(|cx| InputState::new(window, cx));
         let tags = cx.new(|cx| InputState::new(window, cx));
@@ -60,7 +53,7 @@ impl AppState {
                                         .button(
                                             Button::new("Note Type")
                                                 .label("Note Type")
-                                                .on_click(|e, window, cx| {}),
+                                                .on_click(|_event, _window, _cx| {}),
                                         )
                                         .dropdown_menu(|menu, _, _| {
                                             menu.menu("Option 1", Box::new(SelectNoteType))
@@ -86,7 +79,9 @@ impl AppState {
         });
     }
 
-    fn settings(&mut self, e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {}
+    fn settings(&mut self, _e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
+        settings::settings_view(self.settings.clone(), cx.entity().clone(), window, cx);
+    }
 
     fn titlebar(cx: &mut Context<Self>) -> TitleBar {
         TitleBar::new().child(
@@ -107,16 +102,13 @@ impl AppState {
                             IconName::Sun
                         })
                         .text_color(cx.theme().foreground)
-                        .on_click(|event, window, cx| {
-                            Theme::change(
-                                if cx.theme().is_dark() {
-                                    ThemeMode::Light
-                                } else {
-                                    ThemeMode::Dark
-                                },
-                                Some(window),
-                                cx,
-                            );
+                        .on_click(|_event, window, cx| {
+                            let mode = if cx.theme().is_dark() {
+                                ThemeMode::Light
+                            } else {
+                                ThemeMode::Dark
+                            };
+                            Theme::change(mode, Some(window), cx);
                         }),
                 ),
         )
@@ -168,7 +160,8 @@ impl Render for AppState {
                                         Button::new("settings")
                                             .child(IconName::Settings)
                                             .label("Settings")
-                                            .cursor(CursorStyle::PointingHand), //.on_click(settings_view),
+                                            .cursor(CursorStyle::PointingHand)
+                                            .on_click(cx.listener(Self::settings)),
                                     ),
                             ),
                     )
@@ -200,17 +193,17 @@ impl Render for AppState {
 }
 
 fn main() {
-    let settings =
-        toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
-            .unwrap();
+    let settings = toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
+        .unwrap_or_else(|_| Settings::default());
 
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)
-        .run(|cx: &mut App| {
+        .run(move |cx: &mut App| {
             gpui_component::init(cx);
+            init_theme(cx);
             let bounds = Bounds::centered(None, size(px(800.), px(550.0)), cx);
 
-            cx.open_window(
+            let _ = cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
                     titlebar: Some(TitleBar::title_bar_options()),
@@ -225,56 +218,53 @@ fn main() {
                         cx,
                         &settings.theme.light_theme,
                         &settings.theme.dark_theme,
-                        &settings.theme.mode,
+                        match settings.theme.mode {
+                            settings::ThemeMode::Light => ThemeMode::Light,
+                            settings::ThemeMode::Dark => ThemeMode::Dark,
+                        },
                     );
 
-                    let view = cx.new(|_| AppState::new(settings));
-                    return cx.new(|cx| Root::new(view, window, cx));
+                    let _app_state = cx.new(|_| AppState::new(settings.clone()));
+
+                    return cx.new(|cx| Root::new(_app_state, window, cx));
                 },
-            )
-            .unwrap();
+            );
         })
 }
 
-pub fn apply_theme(
-    cx: &mut App,
-    light_mode_theme: &String,
-    dark_mode_theme: &String,
-    theme_mode: &ThemeMode,
-) {
-    let light_mode_theme = SharedString::from(light_mode_theme);
-    let dark_mode_theme = SharedString::from(dark_mode_theme);
-    let theme_mode = theme_mode.clone();
-    // Load and watch themes from ./themes directory
-    if let Err(err) = ThemeRegistry::watch_dir(PathBuf::from("./themes"), cx, move |cx| {
-        if let Some(light_mode_theme) = ThemeRegistry::global(cx)
-            .themes()
-            .get(&light_mode_theme)
-            .cloned()
-        {
-            Theme::global_mut(cx).apply_config(&light_mode_theme);
-        }
-        if let Some(dark_mode_theme) = ThemeRegistry::global(cx)
-            .themes()
-            .get(&dark_mode_theme)
-            .cloned()
-        {
-            Theme::global_mut(cx).apply_config(&dark_mode_theme);
-        }
-        // Theme::change must be called from within watch_dir, otherwise race condition fuckery happens.
-        Theme::change(theme_mode, None, cx);
+pub fn init_theme(cx: &mut App) {
+    if let Err(err) = ThemeRegistry::watch_dir(PathBuf::from("./themes"), cx, move |_cx| {
+        // No-op for now as we don't have a good way to notify from here without more boilerplate
     }) {
         println!("Failed to watch themes directory: {}", err)
     }
 }
 
-fn stage_theme(cx: &mut App, theme_to_stage: &Rc<ThemeConfig>) {
-    Theme::global_mut(cx).apply_config(&theme_to_stage);
-}
+#[derive(Clone, Action, serde::Deserialize, PartialEq)]
+pub struct ThemeUpdated;
 
-fn theme_to_string(theme_mode: &ThemeMode) -> String {
-    match theme_mode {
-        ThemeMode::Light => "Light".to_owned(),
-        ThemeMode::Dark => "Dark".to_owned(),
+pub fn apply_theme(
+    cx: &mut App,
+    light_mode_theme: &String,
+    dark_mode_theme: &String,
+    theme_mode: ThemeMode,
+) {
+    let light_mode_theme = SharedString::from(light_mode_theme.clone());
+    let dark_mode_theme = SharedString::from(dark_mode_theme.clone());
+
+    if let Some(light_theme) = ThemeRegistry::global(cx)
+        .themes()
+        .get(&light_mode_theme)
+        .cloned()
+    {
+        Theme::global_mut(cx).apply_config(&light_theme);
     }
+    if let Some(dark_theme) = ThemeRegistry::global(cx)
+        .themes()
+        .get(&dark_mode_theme)
+        .cloned()
+    {
+        Theme::global_mut(cx).apply_config(&dark_theme);
+    }
+    Theme::change(theme_mode, None, cx);
 }

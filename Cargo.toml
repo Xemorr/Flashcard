@@ -18,6 +18,9 @@ hyperflash = "0.1.0"
 # Other
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.2+spec-1.1.0"
+facet = "0.46.1"
+facet-reflect = "0.46.1"
+facet-toml = "0.46.1"
 
 [patch."https://github.com/zed-industries/zed.git"]
 gpui = { git = "https://github.com/gpui-ce/gpui-ce" }
