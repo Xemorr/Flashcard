@@ -214,16 +214,6 @@ fn main() {
                     ..Default::default()
                 },
                 |window, cx| {
-                    apply_theme(
-                        cx,
-                        &settings.theme.light_theme,
-                        &settings.theme.dark_theme,
-                        match settings.theme.mode {
-                            settings2::ThemeMode::Light => ThemeMode::Light,
-                            settings2::ThemeMode::Dark => ThemeMode::Dark,
-                        },
-                    );
-
                     let _app_state = cx.new(|_| AppState::new(settings.clone()));
 
                     return cx.new(|cx| Root::new(_app_state, window, cx));
@@ -233,8 +223,18 @@ fn main() {
 }
 
 pub fn init_theme(cx: &mut App) {
-    if let Err(err) = ThemeRegistry::watch_dir(PathBuf::from("./themes"), cx, move |_cx| {
-        // No-op for now as we don't have a good way to notify from here without more boilerplate
+    if let Err(err) = ThemeRegistry::watch_dir(PathBuf::from("./themes"), cx, move |cx| {
+        let settings = toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
+            .unwrap_or_else(|_| Settings::default());
+        apply_theme(
+            cx,
+            &settings.theme.light_theme,
+            &settings.theme.dark_theme,
+            match settings.theme.mode {
+                settings2::ThemeMode::Light => ThemeMode::Light,
+                settings2::ThemeMode::Dark => ThemeMode::Dark,
+            },
+        );
     }) {
         println!("Failed to watch themes directory: {}", err)
     }
