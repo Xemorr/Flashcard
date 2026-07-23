@@ -8,7 +8,7 @@ use gpui::{
 use gpui_component::{
     button::{Button, DropdownButton},
     input::{Input, InputEvent, InputState},
-    v_flex, WindowExt,
+    v_flex, ThemeRegistry, WindowExt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -26,11 +26,7 @@ impl Settings {
     }
 
     fn update_field_by_path(&mut self, path: &str, value: &str) {
-        if path == "theme.light_theme" {
-            self.theme.light_theme = value.to_string();
-        } else if path == "theme.dark_theme" {
-            self.theme.dark_theme = value.to_string();
-        } else if path == "theme.experimental_feature" {
+        if path == "theme.experimental_feature" {
             self.theme.experimental_feature = value.to_string();
         }
     }
@@ -44,6 +40,14 @@ impl Settings {
             };
         }
     }
+
+    fn update_runtime_choice_by_path(&mut self, path: &str, value: &str) {
+        if path == "theme.light_theme" {
+            self.theme.light_theme = LightThemeName(value.to_string());
+        } else if path == "theme.dark_theme" {
+            self.theme.dark_theme = DarkThemeName(value.to_string());
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Facet, Clone, Copy, PartialEq)]
@@ -54,10 +58,46 @@ pub enum ThemeMode {
     Dark,
 }
 
+/// A field whose valid choices aren't known at compile time (e.g. they depend on
+/// what got hot-loaded into `ThemeRegistry`). Implementors pair a `String`-backed
+/// wrapper type with the logic to compute its option list, so the *type* of a
+/// `Settings` field is enough to drive the dropdown UI — the same way a compile-time
+/// `Facet` enum's variants drive its dropdown, just resolved at render time instead
+/// of derive time.
+pub trait RuntimeChoiceKind: 'static {
+    fn options(cx: &App) -> Vec<String>;
+}
+
+/// Declares a `String`-backed newtype whose choices come from the themes loaded into
+/// `ThemeRegistry` at runtime, filtered by `$filter`. Add a new one of these (and a
+/// matching arm in `Settings::update_runtime_choice_by_path`) to add another
+/// runtime-populated dropdown field.
+macro_rules! runtime_choice_field {
+    ($name:ident, |$theme:ident| $filter:expr) => {
+        #[derive(Clone, PartialEq, Default, Serialize, Deserialize, Facet)]
+        #[serde(transparent)]
+        pub struct $name(pub String);
+
+        impl RuntimeChoiceKind for $name {
+            fn options(cx: &App) -> Vec<String> {
+                ThemeRegistry::global(cx)
+                    .sorted_themes()
+                    .into_iter()
+                    .filter(|$theme| $filter)
+                    .map(|theme| theme.name.to_string())
+                    .collect()
+            }
+        }
+    };
+}
+
+runtime_choice_field!(LightThemeName, |theme| !theme.mode.is_dark());
+runtime_choice_field!(DarkThemeName, |theme| theme.mode.is_dark());
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Default, Facet)]
 pub struct ThemeSettings {
-    pub light_theme: String,
-    pub dark_theme: String,
+    pub light_theme: LightThemeName,
+    pub dark_theme: DarkThemeName,
     pub mode: ThemeMode,
     pub experimental_feature: String,
 }
@@ -76,6 +116,24 @@ impl Action for SelectEnumVariant {
     }
     fn name(&self) -> &'static str { "SelectEnumVariant" }
     fn name_for_type() -> &'static str { "SelectEnumVariant" }
+    fn build(value: gpui::private::serde_json::Value) -> gpui::Result<Box<dyn Action>> {
+        Ok(Box::new(gpui::private::serde_json::from_value::<Self>(value)?))
+    }
+}
+
+#[derive(Clone, serde::Deserialize, PartialEq)]
+pub struct SelectRuntimeChoice {
+    pub field_path: String,
+    pub value: String,
+}
+
+impl Action for SelectRuntimeChoice {
+    fn boxed_clone(&self) -> Box<dyn Action> { Box::new(self.clone()) }
+    fn partial_eq(&self, other: &dyn Action) -> bool {
+        other.as_any().downcast_ref::<Self>().map_or(false, |a| a == self)
+    }
+    fn name(&self) -> &'static str { "SelectRuntimeChoice" }
+    fn name_for_type() -> &'static str { "SelectRuntimeChoice" }
     fn build(value: gpui::private::serde_json::Value) -> gpui::Result<Box<dyn Action>> {
         Ok(Box::new(gpui::private::serde_json::from_value::<Self>(value)?))
     }
@@ -126,17 +184,51 @@ pub fn settings_view(settings: Settings, entity: Entity<AppState>, window: &mut 
             });
         });
 
+        let entity_for_runtime_choice = entity_for_dialog.clone();
+        let settings_for_runtime_choice = settings_for_render.clone();
+
+        cx.on_action(move |action: &SelectRuntimeChoice, cx| {
+            settings_for_runtime_choice.borrow_mut().update_runtime_choice_by_path(&action.field_path, &action.value);
+            entity_for_runtime_choice.update(cx, |state, cx| {
+                state.settings.update_runtime_choice_by_path(&action.field_path, &action.value);
+                state.settings.save_to_disk();
+                apply_current_theme(state, cx);
+                cx.notify();
+            });
+        });
+
         let mut content = v_flex().gap_3().p_4();
 
         let current_settings = settings_for_render.borrow();
 
-        content = render_shape(Peek::new(&*current_settings), &ui_state, content, "");
+        content = render_shape(Peek::new(&*current_settings), &ui_state, content, "", cx);
 
         dialog.title("App Settings").child(content)
     });
 }
 
+/// True if `peek` is one of the `RuntimeChoiceKind` wrapper types (e.g. `LightThemeName`),
+/// which render as a dropdown fed by runtime state rather than a free-text `Input`.
+fn is_runtime_choice(peek: &Peek) -> bool {
+    peek.get::<LightThemeName>().is_ok() || peek.get::<DarkThemeName>().is_ok()
+}
+
+/// If `peek` is one of the `RuntimeChoiceKind` wrapper types, returns its current value
+/// plus the options computed from current runtime state (e.g. loaded themes).
+fn runtime_choice_options(peek: &Peek, cx: &App) -> Option<(String, Vec<String>)> {
+    if let Ok(v) = peek.get::<LightThemeName>() {
+        return Some((v.0.clone(), LightThemeName::options(cx)));
+    }
+    if let Ok(v) = peek.get::<DarkThemeName>() {
+        return Some((v.0.clone(), DarkThemeName::options(cx)));
+    }
+    None
+}
+
 fn build_input_states(peek: Peek, ui_state: &mut SettingsUiState, window: &mut Window, cx: &mut App, path: &str) {
+    if is_runtime_choice(&peek) {
+        return;
+    }
     match peek.shape().ty {
         Type::User(UserType::Struct(s_ty)) => {
             if let Ok(s) = peek.into_struct() {
@@ -164,7 +256,25 @@ fn build_input_states(peek: Peek, ui_state: &mut SettingsUiState, window: &mut W
     }
 }
 
-fn render_shape(peek: Peek, ui_state: &SettingsUiState, mut container: gpui::Div, path: &str) -> gpui::Div {
+fn render_shape(peek: Peek, ui_state: &SettingsUiState, mut container: gpui::Div, path: &str, cx: &App) -> gpui::Div {
+    if let Some((current, options)) = runtime_choice_options(&peek, cx) {
+        let field_path = path.to_string();
+
+        return container.child(
+            DropdownButton::new(path.to_string())
+                .button(Button::new(path.to_string()).label(format!("{}: {}", path, current)))
+                .dropdown_menu(move |menu, _, _| {
+                    let mut menu = menu;
+                    for name in &options {
+                        let field_path = field_path.clone();
+                        let value = name.clone();
+                        menu = menu.menu(name.clone(), Box::new(SelectRuntimeChoice { field_path, value }));
+                    }
+                    menu
+                }),
+        );
+    }
+
     match peek.shape().ty {
         Type::User(UserType::Struct(s_ty)) => {
             if let Ok(s) = peek.into_struct() {
@@ -172,7 +282,7 @@ fn render_shape(peek: Peek, ui_state: &SettingsUiState, mut container: gpui::Div
                     let field_name = field.name;
                     let field_path = if path.is_empty() { field_name.to_string() } else { format!("{}.{}", path, field_name) };
                     if let Ok(field_peek) = s.field(i) {
-                        container = render_shape(field_peek, ui_state, container, &field_path);
+                        container = render_shape(field_peek, ui_state, container, &field_path, cx);
                     }
                 }
             }
@@ -220,8 +330,8 @@ fn render_shape(peek: Peek, ui_state: &SettingsUiState, mut container: gpui::Div
 fn apply_current_theme(state: &AppState, cx: &mut App) {
     crate::apply_theme(
         cx,
-        &state.settings.theme.light_theme,
-        &state.settings.theme.dark_theme,
+        &state.settings.theme.light_theme.0,
+        &state.settings.theme.dark_theme.0,
         match state.settings.theme.mode {
             ThemeMode::Light => gpui_component::ThemeMode::Light,
             ThemeMode::Dark => gpui_component::ThemeMode::Dark,

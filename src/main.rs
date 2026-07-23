@@ -233,8 +233,8 @@ pub fn init_theme(cx: &mut App) {
         .unwrap_or_else(|_| Settings::default());
         apply_theme(
             cx,
-            &settings.theme.light_theme,
-            &settings.theme.dark_theme,
+            &settings.theme.light_theme.0,
+            &settings.theme.dark_theme.0,
             match settings.theme.mode {
                 settings::ThemeMode::Light => ThemeMode::Light,
                 settings::ThemeMode::Dark => ThemeMode::Dark,
