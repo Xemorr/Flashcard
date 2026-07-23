@@ -1,22 +1,19 @@
 use std::path::PathBuf;
 
 mod modal;
-mod settings2;
+mod settings;
 
 use gpui::{
-    Action, App, Bounds, ClickEvent, Context, CursorStyle, IntoElement, Pixels,
-    Render, SharedString, Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
+    Action, App, Bounds, ClickEvent, Context, CursorStyle, IntoElement, Pixels, Render,
+    SharedString, Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
 };
 use gpui_component::button::{Button, DropdownButton};
 use gpui_component::input::{Input, InputState};
 use gpui_component::resizable::{h_resizable, resizable_panel};
-use gpui_component::{
-    ActiveTheme, IconName, Root, Theme, ThemeMode,
-    WindowExt, h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme, IconName, Root, Theme, ThemeMode, WindowExt, h_flex, v_flex};
 use gpui_component::{ThemeRegistry, TitleBar};
 
-use crate::settings2::Settings;
+use crate::settings::Settings;
 
 #[derive(Clone, PartialEq, Action, serde::Deserialize)]
 pub struct SelectNoteType;
@@ -56,7 +53,12 @@ impl AppState {
                                                 .on_click(|_event, _window, _cx| {}),
                                         )
                                         .dropdown_menu(|menu, _, _| {
-                                            menu.menu("Option 1", Box::new(SelectNoteType))
+                                            menu.menu("Basic", Box::new(SelectNoteType))
+                                                .menu(
+                                                    "Basic (and reversed)",
+                                                    Box::new(SelectNoteType),
+                                                )
+                                                .menu("Gap Fill (Cloze)", Box::new(SelectNoteType))
                                         }),
                                 )
                                 .child(
@@ -80,7 +82,7 @@ impl AppState {
     }
 
     fn settings(&mut self, _e: &ClickEvent, window: &mut Window, cx: &mut Context<Self>) {
-        settings2::settings_view(self.settings.clone(), cx.entity().clone(), window, cx);
+        settings::settings_view(self.settings.clone(), cx.entity().clone(), window, cx);
     }
 
     fn titlebar(cx: &mut Context<Self>) -> TitleBar {
@@ -193,8 +195,9 @@ impl Render for AppState {
 }
 
 fn main() {
-    let settings = toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
-        .unwrap_or_else(|_| Settings::default());
+    let settings =
+        toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
+            .unwrap_or_else(|_| Settings::default());
 
     gpui_platform::application()
         .with_assets(gpui_component_assets::Assets)
@@ -224,15 +227,17 @@ fn main() {
 
 pub fn init_theme(cx: &mut App) {
     if let Err(err) = ThemeRegistry::watch_dir(PathBuf::from("./themes"), cx, move |cx| {
-        let settings = toml::from_str::<Settings>(&std::fs::read_to_string("settings.toml").unwrap_or_default())
-            .unwrap_or_else(|_| Settings::default());
+        let settings = toml::from_str::<Settings>(
+            &std::fs::read_to_string("settings.toml").unwrap_or_default(),
+        )
+        .unwrap_or_else(|_| Settings::default());
         apply_theme(
             cx,
             &settings.theme.light_theme,
             &settings.theme.dark_theme,
             match settings.theme.mode {
-                settings2::ThemeMode::Light => ThemeMode::Light,
-                settings2::ThemeMode::Dark => ThemeMode::Dark,
+                settings::ThemeMode::Light => ThemeMode::Light,
+                settings::ThemeMode::Dark => ThemeMode::Dark,
             },
         );
     }) {

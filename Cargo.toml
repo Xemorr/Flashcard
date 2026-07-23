@@ -13,7 +13,7 @@ gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", 
 smallvec = "=1.15.2"
 
 # Flashcard Libraries
-hyperflash = "0.1.0"
+hyperflash = { git = "https://tangled.org/philocalyst.bsky.social/flash", rev = "0212855d" }
 
 # Other
 serde = { version = "1.0.228", features = ["derive"] }
