@@ -1,5 +1,7 @@
 [theme]
 light_theme = "Molokai Light"
-dark_theme = "Default Dark"
+dark_theme = "Catppuccin Mocha"
 mode = "Dark"
-experimental_feature = "hihih"
+experimental_feature = "dkluiahdash"
+
+[scheduler]
