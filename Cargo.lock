@@ -17,6 +17,7 @@ dependencies = [
  "serde",
  "smallvec 1.15.2",
  "toml 1.1.3+spec-1.1.0",
+ "uuid",
 ]
 
 [[package]]
@@ -712,31 +713,6 @@ dependencies = [
  "shlex 1.3.0",
  "syn 2.0.119",
 ]
-
-[[package]]
-name = "biome_rowan"
-version = "0.5.7"
-source = "git+https://github.com/biomejs/biome#781d68dae5df6ad188efc8afb0972112654614fe"
-dependencies = [
- "biome_text_edit",
- "biome_text_size",
- "hashbrown 0.15.5",
- "rustc-hash 2.1.3",
-]
-
-[[package]]
-name = "biome_text_edit"
-version = "0.5.7"
-source = "git+https://github.com/biomejs/biome#781d68dae5df6ad188efc8afb0972112654614fe"
-dependencies = [
- "biome_text_size",
- "similar",
-]
-
-[[package]]
-name = "biome_text_size"
-version = "0.5.7"
-source = "git+https://github.com/biomejs/biome#781d68dae5df6ad188efc8afb0972112654614fe"
 
 [[package]]
 name = "bit-set"
@@ -2260,11 +2236,40 @@ checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 [[package]]
 name = "flash-evalexpr"
 version = "13.1.1"
-source = "git+https://tangled.org/philocalyst.bsky.social/flash?rev=0212855d#0212855d5ff2229ae8d7a1d4dd6e2138fbc37e7a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2029c976af8f4e59a62302c8b66571856d925f0102bb376ab48c7e4143e036"
 dependencies = [
  "ordered-float 4.6.0",
  "serde",
 ]
+
+[[package]]
+name = "flash_rowan"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "691e71e1ea8a366be03b45379c77243916307347a3e194d1acaf86ef636a0266"
+dependencies = [
+ "flash_text_edit",
+ "flash_text_size",
+ "hashbrown 0.15.5",
+ "rustc-hash 2.1.3",
+]
+
+[[package]]
+name = "flash_text_edit"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea9dd389560e8d95bf5d39c5b099dc010c6492f4b5d625e976b96d7db4d76626"
+dependencies = [
+ "flash_text_size",
+ "similar",
+]
+
+[[package]]
+name = "flash_text_size"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b399e938a1f2a9864a503475ae8c52f2fcca1c19cc48c5cbc0604014281410f3"
 
 [[package]]
 name = "flate2"
@@ -4507,20 +4512,19 @@ dependencies = [
 
 [[package]]
 name = "hyperflash"
-version = "0.1.1"
-source = "git+https://tangled.org/philocalyst.bsky.social/flash?rev=0212855d#0212855d5ff2229ae8d7a1d4dd6e2138fbc37e7a"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1d19095f839c4d4d8220f756bdfbc80db46f9f85004e8abedeb12cee231f17d"
 dependencies = [
  "ankit",
  "ariadne",
  "base64",
- "biome_rowan",
- "biome_text_edit",
- "biome_text_size",
  "clap",
  "color-eyre",
  "dir_spec",
  "eyre",
  "flash-evalexpr",
+ "flash_rowan",
  "fs-err",
  "gix",
  "hayagriva",
@@ -4542,6 +4546,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "typed-builder",
  "uuid",
  "winnow 1.0.4",
 ]
@@ -9053,6 +9058,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 dependencies = [
  "core_maths",
+]
+
+[[package]]
+name = "typed-builder"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd9d30e3a08026c78f246b173243cf07b3696d274debd26680773b6773c2afc7"
+dependencies = [
+ "typed-builder-macro",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c36781cc0e46a83726d9879608e4cf6c2505237e263a8eb8c24502989cfdb28"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

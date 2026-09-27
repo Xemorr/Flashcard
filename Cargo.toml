@@ -13,7 +13,7 @@ gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", 
 smallvec = "=1.15.2"
 
 # Flashcard Libraries
-hyperflash = { git = "https://tangled.org/philocalyst.bsky.social/flash", rev = "0212855d" }
+hyperflash = "0.2.0"
 
 # Other
 serde = { version = "1.0.228", features = ["derive"] }
@@ -21,6 +21,7 @@ toml = "1.1.2+spec-1.1.0"
 facet = "0.46.1"
 facet-reflect = "0.46.1"
 facet-toml = "0.46.1"
+uuid = "1.24"
 
 [patch."https://github.com/zed-industries/zed.git"]
 gpui = { git = "https://github.com/gpui-ce/gpui-ce" }
